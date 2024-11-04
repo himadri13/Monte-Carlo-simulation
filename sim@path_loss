@@ -1,40 +1,67 @@
-tic %Start Code-Execution
-clc %Clear Terminal
-clear %Clear Workspace
-close all %Close Side Operations
-snrdB=-5:1:30; %Iteration of SNR(dB) : Channel-Variation
-snr=10.^(snrdB/10); %SNR from SNR(dB)
-ne=zeros(1,numel(snrdB));
-N=input('Enter sample no. (no. of communications) : '); %Sample-Number
-for j=1:numel(snr) %Iteration (upto Individual SNR)
-    sigma=sqrt(1/(2*snr(j))); %Standard Deviation of Gaussian-Noise
-    E=0; %Error-count Initiated
-    for i=1:N %Iteration for Individual Samples
-        %Transmitter-modelling
-        d=round(rand(1));%Random bit-generation 
-        x=(2*d)-1;%Unipolar(Bits)->Bipolar(Signal)
-        %Channel-modelling
-        n=sigma*randn;%Noise-Signal
-        %Receiver-modelling
-        y=x+n;%Noise-corrupted Signal
-        %Decision-Logic (at End)
-        if y>=0 
-            d_rcv=1;
-        else
-            d_rcv=0;
-        end
-        %Error-Detection
-        if(d_rcv~=d) %Bit-Mismatch (After Communicaton)
-            E=E+1; %Error-count Upgrading
-        end
-    end
-    ne(j)=E; %j-th Error, with respect to the j-th SNR (Array-Generation)
-end
-ber_sim=(ne/N); %Simulation-BER (from Error-count)
-ber_theo=qfunc(sqrt(2*snr)); %Theoretical-BER (from SNR)
-semilogy(snrdB,ber_sim,snrdB,ber_theo,'--'); %Semi-log Plot (Log. in Y-axis)
-axis([-5 30 0.0001 1]); %Axis-Mapping (with Thickness=1)
-xlabel('SNR in dB'); %X-Label
-ylabel('BER'); %Y-Label
-legend('Simulation','Theoretical'); %Naming of the Different Plots
-toc %End Code-execution : Calculate Total Time Elapsed
+% Data for distances (d) and field strength (E) at hinf = 20m and hsup = 37.5m
+d = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
+E_hinf = [97, 86, 80, 75, 70.5, 68, 65, 61.5, 60, 58.5, 42.5, 35, 29.5, 25, 22, 20, 18, 16, 14, 3, -6, -15, -23, -32, -40, -50, -58, -65];
+E_hsup = [98, 89, 83, 79, 75, 72, 70, 67, 65, 62.5, 49, 40, 34.5, 30, 26, 23, 20.5, 19, 17.5, 4, -6, -15, -24, -32, -40, -50, -58, -65];
+
+
+E_hinf2 = [95, 85.5, 80, 75, 71.5, 69, 66, 63.5, 61, 60, 46, 38.5, 33, 30, 27, 24, 22, 20.5, 19.5, 8, -2, -10, -20, -28, -37, -46, -55, -63];
+E_hsup2 = [97.5, 88.5, 82, 79, 75, 72, 70, 68, 65.5, 64.5, 50.5, 42.5, 38, 34, 30, 28, 25.5, 23.5, 21.5, 10, -1, -10, -20, -27.5, -37, -46, -55, -63];
+
+% Compute effective field strength (E) using the given formula
+h_inf = 20;
+h_sup = 37.5;
+h1 = 30;
+E = E_hinf + (E_hsup - E_hinf) .* (log10(h1/h_inf) ./ log10(h_sup/h_inf)); % for 2Ghz
+E2 = E_hinf2 + (E_hsup2 - E_hinf2) .* (log10(h1/h_inf) ./ log10(h_sup/h_inf));% for 600Mhz
+
+% Frequency (in MHz)
+f = 3400;
+
+% Create an array to store the new values of E
+new_E_values = E;
+new_E_values2 = E2;
+
+% Frequency interpolation
+E3 = new_E_values2 + (new_E_values - new_E_values2) .* (log10(3400/600) / log10(2000/600)); % for 3400Mhz
+
+% Display the new values of E
+disp('New Effective Field Strength (E) Values:');
+disp(new_E_values);
+
+% ES correction
+R2 = (1000 .* d .* 30 - 15 .* h1) ./ (1000 .* d - 15);
+c = 25.1 .* log10(30 ./ 10);
+
+% Store R2 values
+R2_values = R2;
+disp('R2 Values:');
+disp(R2_values);
+
+% Calculate path loss using the formula: L = 139.3 - E + 20*log10(f)
+m=(2.37*(((0.024.*3400./1000)+0.52)*((100).^0.28))); 
+Lb = 139.3 - E3 + 20 .* log10(f) - 13.475 -m -c ;
+
+
+% Plot the graph (semilogx for logarithmic x-axis)
+figure;
+semilogx(d, Lb, '-o', 'LineWidth', 2);
+grid on;
+
+% Labels and title
+xlabel('Distance (km)');
+ylabel('Path Loss (Lb) [dB]');
+title('Path Loss vs Distance (f = 2000 MHz)');
+
+% Add dashed lines for the point where path loss is 180 dB
+% Find the corresponding distance (use interpolation to find exact point)
+distance_at_180dB = interp1(Lb, d, 180);
+
+% Plot a vertical dashed line at the distance corresponding to 180 dB
+xline(distance_at_180dB, '--k', 'LineWidth', 1.5); 
+
+% Plot a horizontal dashed line at 180 dB
+yline(180, '--k', 'LineWidth', 1.5); 
+
+% Add a text annotation for clarity
+text(distance_at_180dB, 180, sprintf('%.1f km, 180 dB', distance_at_180dB), ...
+    'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'right', 'FontSize', 10);
